@@ -1,0 +1,122 @@
+#!/bin/bash
+
+#kill currently running process
+#kill all mplayer instances owned by this user
+#save this process id
+
+#cd "$(dirname $(readlink -f $0))"
+cd ${HOME}/playlists;
+pidfile="/tmp/transcast.pid"
+if [ -f "$pidfile" ]; then 
+	transcastpid=$(cat ${pidfile});
+	kill -0 $transcastpid                  
+	if [ "$?" -eq "0" ]; then kill -15 $transcastpid; fi;
+fi;
+echo $$>${pidfile};
+
+#prepare our pipe
+pipe="/tmp/ckradio"
+
+if [[ ! -p $pipe ]]; then
+    mkfifo $pipe
+fi
+
+#initialise our variables
+
+play="$1"
+play_type="$3"
+end_after="$2"
+start_from="$4"
+debug="$5"
+
+if [ -z $end_after ]; then end_after="24:00:00"; fi;
+if [ -z $start_from ]; then start_from="0"; fi;
+if [ -z "$debug" ]; 
+	then debug="-quiet -really-quiet"; 
+else
+	debug="-v";
+fi;
+
+mplayer_post=""
+mplayer_opts="mplayer $debug -cache 2048 -cache-min 4 -ao pcm:fast:nowaveheader:file=$pipe -af resample=44100,channels=2 -vc null -vo null"
+
+start=$(date +%s)
+endARR=(${end_after//:/ })
+
+let end=$[${start}+$[$[${endARR[0]}*60*60]+$[${endARR[1]}*60]+$[${endARR[2]}]]];
+
+#do everythin :-)
+
+killall mplayer
+killall get_iplayer
+
+while [ "${end}" -gt "`date +%s`" ] 
+do
+        now=$(date +%s);
+	endpos=$[${end}-${now}]
+	ss=$[$start_from+${now}-${start}]
+	if [ $ss -lt "20" ]; then ss=0; fi;
+
+	case "$play_type" in
+		live)
+			$mplayer_opts -endpos $endpos -playlist "$play" $mplayer_post
+			;;
+		direct)
+			$mplayer_opts -endpos $endpos "$play" $mplayer_post
+			;;
+		archive)
+			$mplayer_opts -ss $ss -endpos $end "$play" $mplayer_post
+			;;
+		shuffle)
+			$mplayer_opts "$play" -shuffle $mplayer_post
+			;;
+		shuffle-pl)
+			$mplayer_opts -playlist "$play" -shuffle $mplayer_post
+			;;
+		infinite)
+			$mplayer_opts -playlist "$play" $mplayer_post
+			;;
+		bbc-radio)
+			get_iplayer --stream --type=liveradio --pid radio:$play --amode=flashaac --stdout --nowrite | $mplayer_opts -endpos $endpos - $mplayer_post
+			;;
+		bbc-tv) 
+			get_iplayer --stream --type=livetv --pid tv:$play --amode=flashaac --stdout --nowrite | $mplayer_opts -endpos $endpos - $mplayer_post
+			;;
+		bbc-iplayer)
+			pid=$(curl -s http://www.bbc.co.uk/programmes/${play}/episodes/player.json?limit=1 | grep -Po '"episode","pid":".*?[^\\]"' | cut -d: -f2 | sed 's/.\(.*\)/\1/' | sed 's/\(.*\)./\1/')
+			if [ -z "${pid}" ]; then pid=${play}; fi
+			get_iplayer --pid radio:$pid --amode=flashaac --stdout --nowrite | $mplayer_opts -endpos $endpos - $mplayer_post
+			;;
+		podcast)	
+			#rss=$(curl -s "$play");
+			url=$(curl -s "$play" | grep enclosure -m 1 | sed -e 's/.*url="\([^"]*\)".*$/\1/')
+			if [ -z "$url" ]; then 
+				url=$(curl -s "$play" | grep link -m 2 | grep -i "mp3\|mp4" | sed 's#<link>\([^ ]*\)</link>#\1#g')		
+			fi;
+			if [ -z "$url" ]; then
+				url=$(curl -s "$play" | grep "\.mp3" -m 1 | sed -e 's/.*url="\([^"]*\)".*$/\1/')
+			fi;
+			if [ -n "$url" ]; then
+				#trim whitespace from the url
+				shopt -s extglob
+			   	url=${url##+([[:space:]])} url=${url%%+([[:space:]])}
+				echo "$mplayer_opts -ss $ss -endpos $end $url $mplayer_post"
+				$mplayer_opts -ss $ss -endpos $end "$url" $mplayer_post
+			else
+				echo "*****no url*****"
+				sleep 5;
+			fi;
+			;;
+		mms)
+			$mplayer_opts -playlist "$play" 
+			;;
+		*)
+			$mplayer_opts -endpos $endpos -playlist "$play" $mplayer_post
+			;;
+	esac
+	sleep 1
+	
+done;
+
+#kill a bunch of shit and exit
+rm "$pidfile"

@@ -1,0 +1,2 @@
+cd "$(dirname $(readlink -f $0))"
+curl -s http://feeds.feedburner.com/radiofin | grep enclosure | sed -e 's/.*url="\([^"]*\)".*$/\1/' > playlists/wfjk.m3u

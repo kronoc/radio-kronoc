@@ -1,0 +1,14 @@
+#!/bin/bash
+pipe="/tmp/ckradio"
+
+if [[ ! -p $pipe ]]; then
+   exit 1;
+   # mkfifo $pipe
+fi
+
+while [ -p $pipe ]
+do
+	cat $pipe | ices /etc/ices2/ices-ckradio1.xml
+	sleep 2
+done
+
