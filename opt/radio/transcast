@@ -47,6 +47,14 @@ let end=$[${start}+$[$[${endARR[0]}*60*60]+$[${endARR[1]}*60]+$[${endARR[2]}]]];
 
 #do everythin :-)
 
+if [ "$play_type" == "podcast" ]; then
+	${HOME}/podcast2playlist url $play limit 1 > tmp.m3u
+	play="tmp.m3u"
+elif [ "$play_type" == "podcasts" ]; then
+	${HOME}/podcast2playlist url $play limit 100 > tmp.m3u
+	play="tmp.m3u"
+fi;
+
 killall mplayer
 killall get_iplayer
 
@@ -68,9 +76,6 @@ do
 			$mplayer_opts -ss $ss -endpos $end "$play" $mplayer_post
 			;;
 		shuffle)
-			$mplayer_opts "$play" -shuffle $mplayer_post
-			;;
-		shuffle-pl)
 			$mplayer_opts -playlist "$play" -shuffle $mplayer_post
 			;;
 		infinite)
@@ -87,26 +92,12 @@ do
 			if [ -z "${pid}" ]; then pid=${play}; fi
 			get_iplayer --pid radio:$pid --amode=flashaac --stdout --nowrite | $mplayer_opts -endpos $endpos - $mplayer_post
 			;;
-		podcast)	
-			#rss=$(curl -s "$play");
-			url=$(curl -s "$play" | grep enclosure -m 1 | sed -e 's/.*url="\([^"]*\)".*$/\1/')
-			if [ -z "$url" ]; then 
-				url=$(curl -s "$play" | grep link -m 2 | grep -i "mp3\|mp4" | sed 's#<link>\([^ ]*\)</link>#\1#g')		
-			fi;
-			if [ -z "$url" ]; then
-				url=$(curl -s "$play" | grep "\.mp3" -m 1 | sed -e 's/.*url="\([^"]*\)".*$/\1/')
-			fi;
-			if [ -n "$url" ]; then
-				#trim whitespace from the url
-				shopt -s extglob
-			   	url=${url##+([[:space:]])} url=${url%%+([[:space:]])}
-				echo "$mplayer_opts -ss $ss -endpos $end $url $mplayer_post"
-				$mplayer_opts -ss $ss -endpos $end "$url" $mplayer_post
-			else
-				echo "*****no url*****"
-				sleep 5;
-			fi;
+		podcast)
+			$mplayer_opts -ss $ss -endpos $end -playlist "$play" $mplayer_post
 			;;
+		podcasts)
+		        $mplayer_opts -ss $ss -endpos $end -playlist "$play" -shuffle $mplayer_post
+		;;
 		mms)
 			$mplayer_opts -playlist "$play" 
 			;;
