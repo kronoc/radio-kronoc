@@ -1,29 +1,14 @@
 #!/bin/bash
 cd "$(dirname $(readlink -f $0))"
-pidfile="/tmp/fmtx.pid"
-if [ -f "$pidfile" ]; then
-        pid=$(cat ${pidfile});
-	kill -0 $pid
-	if [ "$?" -eq "0" ]; then kill -15 $pid; fi;
-fi;
-echo $$>${pidfile};
 
+PIDS=$(pgrep -d" " fmtx);
+for PID in $PIDS
+do
+        [[ "$PID" -ne "$$" ]] && kill -9 -"$PID";
+done
+#killall cvlc;
 cvlc_opts=" -q --clock-jitter=0 --aout alsa --no-video -Idummy --alsa-audio-device hw:1"
-
 play="$1"
 if [ -z "$play" ]; then play="http://localhost:1976/ckradio1.m3u"; fi;
-
-
-killall cvlc
-killall vlc
-
-case "$play" in
-        #wfmu) cvlc  http $cvlc_opts
-	#;;
-	null) sleep 1
-	;;
-	*) cvlc $play $cvlc_opts
-	;;
-esac
-rm $pidfile;
+cvlc $play $cvlc_opts
 #mplayer -quiet -really-quiet -ao alsa:device=hw=1.0 -vo null -vc null $@
