@@ -1,13 +1,14 @@
 #!/bin/bash
-
+THIS=$$;
 #initialise our variables
 play="http://example.example/example.m3u"
 play_type="live"
 end_after="24:00:00"
 start_from="0"
 debug=false
+shuffle=false
 
-if ! options=$(getopt -u -n "transcast" -o t:e:s:p:d -l type:,end:,start:,play:,debug -- "$@")
+if ! options=$(getopt -u -n "transcast" -o t:e:s:p:dr -l type:,end:,start:,play:,debug,rnd -- "$@")
 then
 	exit 1
 fi
@@ -22,6 +23,7 @@ do
     -s|--start) start_from=$2 ; shift;;
     -e|--end) end_after=$2 ; shift;;
     -d|--debug) debug=true ;;
+    -r|--rnd) shuffle=true ;;
     (--) shift; break;;
     (-*) echo "$0: error - unrecognized option $1" 1>&2; exit 1;;
     (*) break;;
@@ -31,9 +33,12 @@ done
 
 #cd "$(dirname $(readlink -f $0))"
 cd ${HOME}/playlists;
-pidfile="/tmp/transcast.pid"
-[[ -f "$pidfile" ]] &&	kill -9 -"$(cat ${pidfile})" || echo "No previous instance found.";
-echo $$>${pidfile};
+PIDS=$(pgrep -d" " transcast);
+for PID in $PIDS
+do
+	[[ "$PID" -ne "$THIS" ]] && kill -9 -"$PID";
+done
+
 killall mplayer;
 killall get_iplayer;
 
@@ -58,12 +63,16 @@ end=$[${start}+$[$[${endARR[0]}*60*60]+$[${endARR[1]}*60]+$[${endARR[2]}]]];
 
 #if its a podcast generate a playlist and play that
 if [ "$play_type" == "podcast" ]; then
-	${HOME}/podcast2playlist url $play limit 1 > tmp.m3u
-	play="tmp.m3u"
+	playlist=$(mktemp);
+	${HOME}/podcast2playlist url $play limit 1 > $playlist;
+	play=$playlist;
 elif [ "$play_type" == "podcasts" ]; then
-	${HOME}/podcast2playlist url $play limit 100 > tmp.m3u
-	play="tmp.m3u"
+	playlist=$(mktemp);
+	${HOME}/podcast2playlist url $play limit 100 > $playlist;
+	play=$playlist;
 fi;
+
+[[ $debug ]] && echo "play:$play";
 
 while [ "${end}" -gt "`date +%s`" ] 
 do
@@ -115,5 +124,3 @@ do
 	sleep 1
 	
 done;
-
-rm "$pidfile"
