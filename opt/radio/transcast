@@ -32,8 +32,10 @@ done
 #cd "$(dirname $(readlink -f $0))"
 cd ${HOME}/playlists;
 pidfile="/tmp/transcast.pid"
-[[ -f "$pidfile" ]] &&	kill -15 -"$(cat ${pidfile})" || echo "No previous instance found.";
+[[ -f "$pidfile" ]] &&	kill -9 -"$(cat ${pidfile})" || echo "No previous instance found.";
 echo $$>${pidfile};
+killall mplayer;
+killall get_iplayer;
 
 pipe="/tmp/ckradio"
 [[ ! -p $pipe ]] && mkfifo $pipe;
