@@ -1,52 +1,60 @@
 #!/bin/bash
 
-#kill currently running process
-#kill all mplayer instances owned by this user
-#save this process id
+#initialise our variables
+play="http://example.example/example.m3u"
+play_type="live"
+end_after="24:00:00"
+start_from="0"
+debug=false
+
+if ! options=$(getopt -u -n "transcast" -o t:e:s:p:d -l type:,end:,start:,play:,debug -- "$@")
+then
+	exit 1
+fi
+
+set -- $options
+
+while [ $# -gt 0 ]
+do
+    case $1 in
+    -p|--play) play="$2" ; shift;;
+    -t|--type) play_type="$2" ; shift;;
+    -s|--start) start_from=$2 ; shift;;
+    -e|--end) end_after=$2 ; shift;;
+    -d|--debug) debug=true ;;
+    (--) shift; break;;
+    (-*) echo "$0: error - unrecognized option $1" 1>&2; exit 1;;
+    (*) break;;
+    esac
+    shift
+done
 
 #cd "$(dirname $(readlink -f $0))"
 cd ${HOME}/playlists;
 pidfile="/tmp/transcast.pid"
-if [ -f "$pidfile" ]; then 
-	transcastpid=$(cat ${pidfile});
-	kill -0 $transcastpid                  
-	if [ "$?" -eq "0" ]; then kill -15 $transcastpid; fi;
-fi;
+[[ -f "$pidfile" ]] &&	kill -15 -"$(cat ${pidfile})" || echo "No previous instance found.";
 echo $$>${pidfile};
 
-#prepare our pipe
 pipe="/tmp/ckradio"
+[[ ! -p $pipe ]] && mkfifo $pipe;
 
-if [[ ! -p $pipe ]]; then
-    mkfifo $pipe
+if $debug ; then 
+	echo "play:$play play_type:$play_type start_from:$start_from end_after:$end_after debug:$debug"
+	verbosity="-v"; 
+else 
+	verbosity="-quiet -really-quiet"; 
 fi
 
-#initialise our variables
-
-play="$1"
-play_type="$3"
-end_after="$2"
-start_from="$4"
-debug="$5"
-
-if [ -z $end_after ]; then end_after="24:00:00"; fi;
-if [ -z $start_from ]; then start_from="0"; fi;
-if [ -z "$debug" ]; 
-	then debug="-quiet -really-quiet"; 
-else
-	debug="-v";
-fi;
-
 mplayer_post=""
-mplayer_opts="mplayer $debug -cache 2048 -cache-min 4 -ao pcm:fast:nowaveheader:file=$pipe -af resample=44100,channels=2 -vc null -vo null"
+mplayer_opts="mplayer $verbosity -cache 4096 -cache-min 8 -ao pcm:fast:nowaveheader:file=$pipe -af resample=44100,channels=2 -vc null -vo null"
 
-start=$(date +%s)
-endARR=(${end_after//:/ })
-
-let end=$[${start}+$[$[${endARR[0]}*60*60]+$[${endARR[1]}*60]+$[${endARR[2]}]]];
+start=$(date +%s);
+endARR=(${end_after//:/ });
+end=$[${start}+$[$[${endARR[0]}*60*60]+$[${endARR[1]}*60]+$[${endARR[2]}]]];
 
 #do everythin :-)
 
+#if its a podcast generate a playlist and play that
 if [ "$play_type" == "podcast" ]; then
 	${HOME}/podcast2playlist url $play limit 1 > tmp.m3u
 	play="tmp.m3u"
@@ -54,9 +62,6 @@ elif [ "$play_type" == "podcasts" ]; then
 	${HOME}/podcast2playlist url $play limit 100 > tmp.m3u
 	play="tmp.m3u"
 fi;
-
-killall mplayer
-killall get_iplayer
 
 while [ "${end}" -gt "`date +%s`" ] 
 do
@@ -109,5 +114,4 @@ do
 	
 done;
 
-#kill a bunch of shit and exit
 rm "$pidfile"
