@@ -52,7 +52,12 @@ else
 	verbosity="-quiet -really-quiet"; 
 fi
 
-mplayer_post=""
+if $shuffle; then
+	mplayer_post="-shuffle";
+else
+	mplayer_post="";
+fi
+
 mplayer_opts="mplayer $verbosity -cache 4096 -cache-min 8 -ao pcm:fast:nowaveheader:file=$pipe -af resample=44100,channels=2 -vc null -vo null"
 
 start=$(date +%s);
@@ -62,17 +67,14 @@ end=$[${start}+$[$[${endARR[0]}*60*60]+$[${endARR[1]}*60]+$[${endARR[2]}]]];
 #do everythin :-)
 
 #if its a podcast generate a playlist and play that
-if [ "$play_type" == "podcast" ]; then
-	playlist=$(mktemp);
-	${HOME}/podcast2playlist url $play limit 1 > $playlist;
-	play=$playlist;
-elif [ "$play_type" == "podcasts" ]; then
-	playlist=$(mktemp);
-	${HOME}/podcast2playlist url $play limit 100 > $playlist;
-	play=$playlist;
-fi;
-
-[[ $debug ]] && echo "play:$play";
+if [[ "$play_type" == pod* ]]; then
+	limit="1";
+	if [ "$play_type" == "podcasts" ]; then limit="100"; fi;
+        playlist=$(mktemp);
+        ${HOME}/podcast2playlist url $play limit $limit > $playlist;
+        play=$playlist;
+	if $debug ; then echo "\n$playlist\n$limit\n"; fi;
+fi
 
 while [ "${end}" -gt "`date +%s`" ] 
 do
@@ -82,19 +84,13 @@ do
 	if [ $ss -lt "20" ]; then ss=0; fi;
 
 	case "$play_type" in
-		live)
-			$mplayer_opts -endpos $endpos -playlist "$play" $mplayer_post
-			;;
 		direct)
 			$mplayer_opts -endpos $endpos "$play" $mplayer_post
 			;;
 		archive)
 			$mplayer_opts -ss $ss -endpos $end "$play" $mplayer_post
 			;;
-		shuffle)
-			$mplayer_opts -playlist "$play" -shuffle $mplayer_post
-			;;
-		infinite)
+		infinite|mms)
 			$mplayer_opts -playlist "$play" $mplayer_post
 			;;
 		bbc-radio)
@@ -108,14 +104,8 @@ do
 			if [ -z "${pid}" ]; then pid=${play}; fi
 			get_iplayer --pid radio:$pid --amode=flashaac --stdout --nowrite | $mplayer_opts -endpos $endpos - $mplayer_post
 			;;
-		podcast)
+		podcast|podcasts)
 			$mplayer_opts -ss $ss -endpos $end -playlist "$play" $mplayer_post
-			;;
-		podcasts)
-		        $mplayer_opts -ss $ss -endpos $end -playlist "$play" -shuffle $mplayer_post
-		;;
-		mms)
-			$mplayer_opts -playlist "$play" 
 			;;
 		*)
 			$mplayer_opts -endpos $endpos -playlist "$play" $mplayer_post
