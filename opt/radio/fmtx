@@ -6,9 +6,9 @@ for PID in $PIDS
 do
         [[ "$PID" -ne "$$" ]] && kill -9 -"$PID";
 done
-#killall cvlc;
+
 cvlc_opts=" -q --clock-jitter=0 --aout alsa --no-video -Idummy --alsa-audio-device hw:1"
-play="$1"
+play="$@"
 if [ -z "$play" ]; then play="http://localhost:1976/ckradio1.m3u"; fi;
-cvlc $play $cvlc_opts
+cvlc "$play" $cvlc_opts
 #mplayer -quiet -really-quiet -ao alsa:device=hw=1.0 -vo null -vc null $@
