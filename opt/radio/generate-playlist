@@ -1,0 +1,1 @@
+find "$1" | grep -i "\.mp3\|\.mkv\|\.avi" > "playlists/$2.m3u"

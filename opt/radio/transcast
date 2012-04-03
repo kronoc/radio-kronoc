@@ -1,14 +1,16 @@
 #!/bin/bash
+
 THIS=$$;
-#initialise our variables
+ME="$(basename $0)";
+
 play="http://example.example/example.m3u"
 play_type="live"
-end_after="24:00:00"
+end_after="24"
 start_from="0"
 debug=false
 shuffle=false
 
-if ! options=$(getopt -u -n "transcast" -o t:e:s:p:dr -l type:,end:,start:,play:,debug,rnd -- "$@")
+if ! options=$(getopt -u -n "$ME" -o t:e:s:p:dr -l type:,end:,start:,play:,debug,rnd -- "$@")
 then
 	exit 1
 fi
@@ -33,7 +35,7 @@ done
 
 #cd "$(dirname $(readlink -f $0))"
 cd ${HOME}/playlists;
-PIDS=$(pgrep -d" " transcast);
+PIDS=$(pgrep -d" " $ME);
 for PID in $PIDS
 do
 	[[ "$PID" -ne "$THIS" ]] && kill -9 -"$PID";
@@ -61,10 +63,9 @@ fi
 mplayer_opts="mplayer $verbosity -cache 4096 -cache-min 8 -ao pcm:fast:nowaveheader:file=$pipe -af resample=44100,channels=2 -vc null -vo null"
 
 start=$(date +%s);
-endARR=(${end_after//:/ });
-end=$[${start}+$[$[${endARR[0]}*60*60]+$[${endARR[1]}*60]+$[${endARR[2]}]]];
-
-#do everythin :-)
+endpoint=$(seconds time ${end_after});
+end=$[${start}+${endpoint}];
+if $debug ; then echo "endpos $endpoint \n"; fi;
 
 #if its a podcast generate a playlist and play that
 if [[ "$play_type" == pod* ]]; then
@@ -81,14 +82,14 @@ do
         now=$(date +%s);
 	endpos=$[${end}-${now}]
 	ss=$[$start_from+${now}-${start}]
-	if [ $ss -lt "20" ]; then ss=0; fi;
 
+	if [ $ss -lt "20" ]; then ss=0; fi;
 	case "$play_type" in
 		direct)
 			$mplayer_opts -endpos $endpos "$play" $mplayer_post
 			;;
 		archive)
-			$mplayer_opts -ss $ss -endpos $end "$play" $mplayer_post
+			$mplayer_opts -ss $ss -endpos $endpoint "$play" $mplayer_post
 			;;
 		infinite|mms)
 			$mplayer_opts -playlist "$play" $mplayer_post
@@ -104,13 +105,16 @@ do
 			if [ -z "${pid}" ]; then pid=${play}; fi
 			get_iplayer --pid radio:$pid --amode=flashaac --stdout --nowrite | $mplayer_opts -endpos $endpos - $mplayer_post
 			;;
-		podcast|podcasts)
-			$mplayer_opts -ss $ss -endpos $end -playlist "$play" $mplayer_post
+		podcast)
+			$mplayer_opts -ss $ss -endpos $endpoint -playlist "$play" $mplayer_post
 			;;
 		*)
 			$mplayer_opts -endpos $endpos -playlist "$play" $mplayer_post
 			;;
 	esac
 	sleep 1
-	
 done;
+
+if [ -f "$playlist" ]; then
+	rm $playlist;
+fi;
