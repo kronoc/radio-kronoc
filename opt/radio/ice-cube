@@ -1,6 +1,13 @@
 #!/bin/bash
 pipe="/tmp/ckradio"
 
+
+PIDS=$(pgrep -d" " "$(basename $0)");
+for PID in $PIDS
+do
+        [[ "$PID" -ne "$$" ]] && kill -9 -"$PID";
+done
+
 if [[ ! -p $pipe ]]; then
    exit 1;
    # mkfifo $pipe

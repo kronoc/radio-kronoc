@@ -1,0 +1,22 @@
+#!/bin/bash
+IC_USER=""
+IC_PASS=""
+IC_HOST=""
+IC_PORT=""
+IC_MOUNT=""
+source ${HOME}/.icecast
+PIDS=$(pgrep -d" " "$(basename $0)");
+for PID in $PIDS
+do
+        [[ "$PID" -ne "$$" ]] && kill -9 "$PID";
+done
+
+title=$(echo "$@" | sed -e 's/ /+/g');
+while [ -p $pipe ]
+do
+	sleep 30
+	curl "http://${IC_USER}:${IC_PASS}@${IC_HOST}:${IC_PORT}/admin/metadata?song=${title}&mount=/${IC_MOUNT}&mode=updinfo&charset=UTF-8" > /dev/null 2>&1;
+	sleep 120
+done
+
+

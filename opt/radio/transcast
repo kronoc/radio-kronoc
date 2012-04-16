@@ -2,15 +2,20 @@
 
 THIS=$$;
 ME="$(basename $0)";
+#cd "$(dirname $(readlink -f $0))"
+cd ${HOME}/playlists;
 
-play="http://example.example/example.m3u"
+play="wfmu.pls"
 play_type="live"
 end_after="24"
 start_from="0"
 debug=false
 shuffle=false
+log=false
+logfile="/tmp/transcast.log"
+meta_title="CK+Radio"
 
-if ! options=$(getopt -u -n "$ME" -o t:e:s:p:dr -l type:,end:,start:,play:,debug,rnd -- "$@")
+if ! options=$(getopt -u -n "$ME" -o t:e:s:n:p:drl -l type:,end:,start:,name:,play:,debug,rnd,log -- "$@")
 then
 	exit 1
 fi
@@ -21,11 +26,13 @@ while [ $# -gt 0 ]
 do
     case $1 in
     -p|--play) play="$2" ; shift;;
+    -n|--name) meta_title="$2" ; shift;;
     -t|--type) play_type="$2" ; shift;;
     -s|--start) start_from=$2 ; shift;;
     -e|--end) end_after=$2 ; shift;;
     -d|--debug) debug=true ;;
     -r|--rnd) shuffle=true ;;
+    -l|--log) log=true ;;
     (--) shift; break;;
     (-*) echo "$0: error - unrecognized option $1" 1>&2; exit 1;;
     (*) break;;
@@ -33,23 +40,22 @@ do
     shift
 done
 
-#cd "$(dirname $(readlink -f $0))"
-cd ${HOME}/playlists;
 PIDS=$(pgrep -d" " $ME);
 for PID in $PIDS
 do
 	[[ "$PID" -ne "$THIS" ]] && kill -9 -"$PID";
 done
 
-killall mplayer;
-killall get_iplayer;
-
 pipe="/tmp/ckradio"
 [[ ! -p $pipe ]] && mkfifo $pipe;
+ctrl_pipe="/tmp/ckradio-ctrl"
+[[ ! -p $ctrl_pipe ]] && mkfifo $ctrl_pipe;
 
 if $debug ; then 
 	echo "play:$play play_type:$play_type start_from:$start_from end_after:$end_after debug:$debug"
 	verbosity="-v"; 
+elif $log ; then
+	verbosity="-quiet -msglevel all=0 -identify ";
 else 
 	verbosity="-quiet -really-quiet"; 
 fi
@@ -59,6 +65,7 @@ if $shuffle; then
 else
 	mplayer_post="";
 fi
+if $log; then mplayer_post="$mplayer_post > $logfile"; fi;
 
 mplayer_opts="mplayer $verbosity -cache 4096 -cache-min 8 -ao pcm:fast:nowaveheader:file=$pipe -af resample=44100,channels=2 -vc null -vo null"
 
@@ -77,6 +84,7 @@ if [[ "$play_type" == pod* ]]; then
 	if $debug ; then echo "\n$playlist\n$limit\n"; fi;
 fi
 
+
 while [ "${end}" -gt "`date +%s`" ] 
 do
         now=$(date +%s);
@@ -84,6 +92,7 @@ do
 	ss=$[$start_from+${now}-${start}]
 
 	if [ $ss -lt "20" ]; then ss=0; fi;
+	updateMetadata "${meta_title}" &	
 	case "$play_type" in
 		direct)
 			$mplayer_opts -endpos $endpos "$play" $mplayer_post
@@ -100,10 +109,15 @@ do
 		bbc-tv) 
 			get_iplayer --stream --type=livetv --pid tv:$play --amode=flashaac --stdout --nowrite | $mplayer_opts -endpos $endpos - $mplayer_post
 			;;
-		bbc-iplayer)
+		bbc-i*)
 			pid=$(curl -s http://www.bbc.co.uk/programmes/${play}/episodes/player.json?limit=1 | grep -Po '"episode","pid":".*?[^\\]"' | cut -d: -f2 | sed 's/.\(.*\)/\1/' | sed 's/\(.*\)./\1/')
 			if [ -z "${pid}" ]; then pid=${play}; fi
-			get_iplayer --pid radio:$pid --amode=flashaac --stdout --nowrite | $mplayer_opts -endpos $endpos - $mplayer_post
+			if [ "$play_type" == "bbc-iplayer-tv" ]; then 
+				platform="tv"; 
+			else 
+				platform="radio"; 
+			fi
+			get_iplayer --pid $platform:$pid --amode=flashaac --stdout --nowrite | $mplayer_opts -endpos $endpos - $mplayer_post
 			;;
 		podcast)
 			$mplayer_opts -ss $ss -endpos $endpoint -playlist "$play" $mplayer_post
