@@ -7,8 +7,12 @@ do
         [[ "$PID" -ne "$$" ]] && kill -9 -"$PID";
 done
 #mplayer_opts="-quiet -really-quiet -ao alsa:device=hw=1.0 -vo null -vc null"
-cvlc_opts=" -q --clock-jitter=0 --aout alsa --no-video -Idummy --alsa-audio-device hw:1"
+opts="-q --clock-jitter=0 --aout alsa --no-video -Idummy --alsa-audio-device hw:1"
+#opts="--clock-jitter=0 --aout alsa --no-video -Idummy --alsa-audio-device hw:1"
+#opts="-v -d alsa -o dev=hw:1"
 play="$@"
-if [ -z "$play" ]; then play="http://localhost:1976/ckradio1.m3u"; fi;
-cvlc "$play" $cvlc_opts
+if [ -z "$play" ]; then play="playlists/ckradio"; fi;
+cvlc "$play" $opts 2> /dev/null
+#echo $opts
+#ogg123 $opts -@ "$play" 2>/dev/null
 #mplayer $mplayer_opts "$play"

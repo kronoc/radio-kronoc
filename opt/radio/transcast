@@ -28,7 +28,7 @@ do
     -p|--play) play="$2" ; shift;;
     -n|--name) meta_title="$2" ; shift;;
     -t|--type) play_type="$2" ; shift;;
-    -s|--start) start_from=$2 ; shift;;
+    -s|--start) start_from=$(seconds time $2) ; shift;;
     -e|--end) end_after=$2 ; shift;;
     -d|--debug) debug=true ;;
     -r|--rnd) shuffle=true ;;
@@ -53,10 +53,14 @@ ctrl_pipe="/tmp/ckradio-ctrl"
 
 if $debug ; then 
 	echo "play:$play play_type:$play_type start_from:$start_from end_after:$end_after debug:$debug"
+	gi_quiet=""
 	verbosity="-v"; 
+
 elif $log ; then
+	gi_quiet="--quiet"
 	verbosity="-quiet -msglevel all=0 -identify ";
 else 
+	gi_quiet="--quiet"
 	verbosity="-quiet -really-quiet"; 
 fi
 
@@ -67,7 +71,8 @@ else
 fi
 if $log; then mplayer_post="$mplayer_post > $logfile"; fi;
 
-mplayer_opts="mplayer $verbosity -cache 4096 -cache-min 8 -ao pcm:fast:nowaveheader:file=$pipe -af resample=44100,channels=2 -vc null -vo null"
+mplayer_bin="radioplayer";
+mplayer_opts="${mplayer_bin} $verbosity -cache 4096 -cache-min 8 -ao pcm:fast:nowaveheader:file=$pipe -af resample=44100,channels=2 -vc null -vo null"
 
 start=$(date +%s);
 endpoint=$(seconds time ${end_after});
@@ -87,12 +92,13 @@ fi
 
 while [ "${end}" -gt "`date +%s`" ] 
 do
+	killall -9 -q ${mplayer_bin};
         now=$(date +%s);
 	endpos=$[${end}-${now}]
 	ss=$[$start_from+${now}-${start}]
 
 	if [ $ss -lt "20" ]; then ss=0; fi;
-	updateMetadata "${meta_title}" &	
+	#updateMetadata "${meta_title}" &	
 	case "$play_type" in
 		direct)
 			$mplayer_opts -endpos $endpos "$play" $mplayer_post
@@ -104,10 +110,10 @@ do
 			$mplayer_opts -playlist "$play" $mplayer_post
 			;;
 		bbc-radio)
-			get_iplayer --stream --type=liveradio --pid radio:$play --amode=flashaac --stdout --nowrite | $mplayer_opts -endpos $endpos - $mplayer_post
+			get_iplayer --stream --type=liveradio --pid radio:$play $gi_quiet --mode=flashaaclow --stdout --nowrite | $mplayer_opts -endpos $endpos - $mplayer_post
 			;;
 		bbc-tv) 
-			get_iplayer --stream --type=livetv --pid tv:$play --amode=flashaac --stdout --nowrite | $mplayer_opts -endpos $endpos - $mplayer_post
+			get_iplayer --stream --type=livetv --pid tv:$play $gi_quiet --mode=flashlow2 --stdout --nowrite | $mplayer_opts -endpos $endpos - $mplayer_post
 			;;
 		bbc-i*)
 			pid=$(curl -s http://www.bbc.co.uk/programmes/${play}/episodes/player.json?limit=1 | grep -Po '"episode","pid":".*?[^\\]"' | cut -d: -f2 | sed 's/.\(.*\)/\1/' | sed 's/\(.*\)./\1/')
@@ -117,7 +123,7 @@ do
 			else 
 				platform="radio"; 
 			fi
-			get_iplayer --pid $platform:$pid --amode=flashaac --stdout --nowrite | $mplayer_opts -endpos $endpos - $mplayer_post
+			get_iplayer --pid $platform:$pid $gi_quiet --amode=flashaaclow --stdout --nowrite | $mplayer_opts -endpos $endpos - $mplayer_post
 			;;
 		podcast)
 			$mplayer_opts -ss $ss -endpos $endpoint -playlist "$play" $mplayer_post

@@ -1,8 +1,8 @@
 url="http://johnlightning.com/11LRNI/"
 #cat 11lrni.html
 files=($(curl -s $url | grep 'href=' | grep '\.mp3\"' | cut -d\" -f2 | sort -r) )
-rm /tmp/rni.m3u
+rm playlists/rni.m3u
 for file in "${files[@]}"
 do
-	echo "${url}${file}" >> /tmp/rni.m3u
+	echo "${url}${file}" >> playlists/rni.m3u
 done
