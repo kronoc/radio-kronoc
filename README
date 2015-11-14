@@ -4,3 +4,5 @@ dependencies:
 Icecast2
 Ices2
 mplayer
+
+Start icecast: /etc/init.d/icecast2 start
